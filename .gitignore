@@ -27,6 +27,7 @@ Thumbs.db
 *.dll
 *.so
 *.dylib
+chirpy
 
 # Test binary
 *.test
