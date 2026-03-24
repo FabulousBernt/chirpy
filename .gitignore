@@ -28,6 +28,7 @@ Thumbs.db
 *.so
 *.dylib
 chirpy
+out
 
 # Test binary
 *.test
