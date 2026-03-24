@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/FabulousBernt/chirpy/internal/auth"
 	"github.com/FabulousBernt/chirpy/internal/database"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
@@ -74,7 +75,8 @@ func (cfg *apiConfig) handlerReset(w http.ResponseWriter, r *http.Request) {
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 	decoder := json.NewDecoder(r.Body)
 	params := parameters{}
@@ -87,12 +89,58 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, r *http.Request) 
 		respondWithError(w, 400, "Email is required")
 		return
 	}
-	user, err := cfg.dbQueries.CreateUser(r.Context(), params.Email)
+	if params.Password == "" {
+		respondWithError(w, 400, "Password is required")
+		return
+	}
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, 500, "Could not hash password")
+		return
+	}
+	user, err := cfg.dbQueries.CreateUser(r.Context(), database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+	})
 	if err != nil {
 		respondWithError(w, 500, "Could not create user")
 		return
 	}
 	respondWithJSON(w, 201, User{
+		ID:        user.ID,
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt,
+		Email:     user.Email,
+	})
+}
+
+func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	decoder := json.NewDecoder(r.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, 500, "Something went wrong")
+		return
+	}
+	user, err := cfg.dbQueries.GetUserByEmail(r.Context(), params.Email)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			respondWithError(w, 401, "Incorrect email or password")
+			return
+		}
+		respondWithError(w, 500, "Could not get user")
+		return
+	}
+	isValid, err := auth.CheckPasswordHash(params.Password, user.HashedPassword)
+	if err != nil || !isValid {
+		respondWithError(w, 401, "Incorrect email or password")
+		return
+	}
+	respondWithJSON(w, 200, User{
 		ID:        user.ID,
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
@@ -255,6 +303,7 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirp)
 	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUser)
+	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 
 	server := &http.Server{
 		Addr:    ":8080",
