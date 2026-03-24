@@ -1,0 +1,41 @@
+# sqlc
+/sqlc.yaml
+/db/sqlc
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+/bin/
+/dist/
+/build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Go
+/vendor/
+
+# Logs
+*.log
+
+# Local development
+*.local
